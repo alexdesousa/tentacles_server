@@ -1,0 +1,10 @@
+{application, tentacles_server, [
+  {description, "Tentacles Server: A concurrent server for Erlang."},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications, [
+    kernel,
+    stdlib
+  ]},
+  {env, []}
+ ]}.
