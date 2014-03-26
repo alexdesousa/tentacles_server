@@ -3,8 +3,8 @@
 -behaviour(gen_server).
 
 -export([start_link/2, sync_message/4, async_message/4, is_alive/3, expire/2,
-         change_dispatcher_timeout/2, send_event_to_controller/3,
-         send_event/2]).
+         change_dispatcher_timeout/2, send_event_to_controller/4,
+         send_event/3]).
 
 -export([get_dispatcher_module/1, get_controller_module/1]).
 
@@ -20,9 +20,6 @@
 %-------------------------------------------------------------------------------
 % Types definitions.
 %-------------------------------------------------------------------------------
-
--type module() :: atom().
-%% Module.
 
 -type base_name() :: atom().
 %% Base name of the server.
@@ -40,7 +37,10 @@
                     | pid().
 %% Server reference.
 
--type response() :: {tentacles_controller:response(), tentacles_controller:millisecs()}.
+-type response() :: {tentacles_controller:response(), tentacles_controller:millisecs()}
+                  | {error, timeout}
+                  | {error, unavailable}
+                  | {error, unknown}.
 %% Server response.
 
 -type dispatcher_state() :: term().
@@ -127,22 +127,22 @@ expire(BaseName, Id) ->
     gen_server:handle_cast(Dispatcher, {'expire', Id}).
 
 -spec change_dispatcher_timeout(base_name(), tentacles_controller:millisecs()) -> ok.
-%% @doc Changes the dispatchers timeout.
+%% @doc Changes the dispatchers timeout. Only allows local calls.
 change_dispatcher_timeout(BaseName, Timeout) ->
     Dispatcher = get_dispatcher_module(BaseName),
     gen_server:handle_cast(Dispatcher, {'change_timeout', Timeout}).
 
--spec send_event_to_controller(base_name(), id(), event()) -> ok.
+-spec send_event_to_controller(base_name(), node(), id(), event()) -> ok.
 %% @doc Sends `Event` to controller identified by `Id`.
-send_event_to_controller(BaseName, Id, Event) ->
+send_event_to_controller(BaseName, Node, Id, Event) ->
     Dispatcher = get_dispatcher_module(BaseName),
-    gen_server:handle_cast(Dispatcher, {'event', Id, Event}).
+    gen_server:handle_cast({Dispatcher, Node}, {'event', Id, Event}).
 
--spec send_event(base_name(), event()) -> ok.
+-spec send_event(base_name(), node(), event()) -> ok.
 %% @doc Sends `Event` to dispatcher.
-send_event(BaseName, Event) ->
+send_event(BaseName, Node, Event) ->
     Dispatcher = get_dispatcher_module(BaseName),
-    gen_server:handle_cast(Dispatcher, {'event', Event}).
+    gen_server:handle_cast({Dispatcher, Node}, {'event', Event}).
 
 %-------------------------------------------------------------------------------
 % gen_server callbacks definitions.

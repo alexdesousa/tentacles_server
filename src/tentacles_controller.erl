@@ -2,17 +2,16 @@
 
 -behaviour(gen_server).
 
+% Public API.
 -export([start_link/2, start_link/3, send_sync/3, send_async/3, send_event/2]).
 
+% Callbacks.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
 %-------------------------------------------------------------------------------
 % Types
 %-------------------------------------------------------------------------------
-
--type module() :: atom().
-%% Module.
 
 -type arguments() :: list(term()).
 %% Arguments for the controller.
@@ -50,9 +49,6 @@
 -type max_age() :: infinity
                  | millisecs().
 %% Max age.
-
--type timeout() :: millisecs().
-%% Timeout.
 
 -type sender() :: {pid(), term()}.
 %% Message sender.
