@@ -10,7 +10,7 @@
 
 %% @doc Starts a tentacles server with base name `BaseName` and arguments `Args`.
 %%      These `Args` will be passed to the dispatcher as arguments for the
-%%      tentacles_<BaseName>_dispatcher:init/1 function.
+%%      tentacles_<BaseName>_dispatcher:init/2 function.
 start_link(BaseName, Args) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, [BaseName, Args]).
 
@@ -18,7 +18,7 @@ start_link(BaseName, Args) ->
 init([BaseName, Args]) ->
     DispatcherName = tentacles_dispatcher:get_dispatcher_module(BaseName),
     Dispatcher     = { DispatcherName
-                     , {DispatcherName, start_link, [BaseName, Args]}
+                     , {DispatcherName, start_link, [BaseName | Args]}
                      , permanent, 2000, worker, [DispatcherName]},
 
     ControllerSupName = list_to_atom("tentacles_" ++ atom_to_list(BaseName) ++ "_controller_sup"),
