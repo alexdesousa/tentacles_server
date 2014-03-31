@@ -22,10 +22,6 @@ init([BaseName, Id, MaxAge]) ->
 
 handle_message(ping, State) ->
     {reply, pong, State};
-handle_message({change_timeout, Timeout}, State) ->
-    BaseName = State#state.base_name,
-    tentacles_dispatcher:change_dispatcher_timeout(BaseName, Timeout),
-    {reply, ok, State};
 handle_message(_Any, State) ->
     {noreply, State}.
 

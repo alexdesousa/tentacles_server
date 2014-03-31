@@ -12,7 +12,8 @@
 %%      These `Args` will be passed to the dispatcher as arguments for the
 %%      tentacles_<BaseName>_dispatcher:init/2 function.
 start_link(BaseName, Args) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [BaseName, Args]).
+    ServerName = list_to_atom("tentacles_" ++ atom_to_list(BaseName) ++ "_server_sup"),
+    supervisor:start_link({local, ServerName}, ?MODULE, [BaseName, Args]).
 
 %% @doc Initializes the dispatcher and the controller supervisor.
 init([BaseName, Args]) ->

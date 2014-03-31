@@ -115,7 +115,7 @@ start_link(Module, Args) ->
                                                         | {error, term()}.
 %% @doc Initializes the tentacles_controller.
 start_link(ServerName, Module, Args) ->
-    case gen_server:start_link(ServerName, [Module, Args], []) of
+    case gen_server:start_link({local, ServerName}, ?MODULE, [Module, Args], []) of
         {error, {already_started, Pid}} ->
             {ok, Pid};
         Else ->
@@ -208,7 +208,7 @@ handle_info(Event, State) ->
 terminate(Reason, State) ->
     Module          = State#state.module,
     ControllerState = State#state.controller_state,
-    Module:terminate(Reason, ControllerState).
+    Module:handle_termination(Reason, ControllerState).
 
 % Code change.
 code_change(_OldVsn, State, _Extra) ->

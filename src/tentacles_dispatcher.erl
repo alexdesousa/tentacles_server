@@ -3,8 +3,8 @@
 -behaviour(gen_server).
 
 -export([start_link/2, sync_message/4, async_message/4, is_alive/3, expire/2,
-         change_dispatcher_timeout/2, send_event_to_controller/4,
-         send_event/3]).
+         change_timeout/2, get_timeout/1, send_event_to_controller/4,
+         send_event/3, stop/2]).
 
 -export([get_dispatcher_module/1, get_controller_module/1]).
 
@@ -92,7 +92,8 @@
 %% max age of `MaxAge`.
 start_link(Name, Args) ->
     CompleteArgs = [Name, Args],
-    case gen_server:start_link({local, ?MODULE}, ?MODULE, CompleteArgs, []) of
+    Dispatcher = get_dispatcher_module(Name),
+    case gen_server:start_link({local, Dispatcher}, ?MODULE, CompleteArgs, []) of
         {error, {already_started, Pid}} ->
             {ok, Pid};
         Else ->
@@ -124,25 +125,37 @@ is_alive(BaseName, Node, Id) ->
 %%      `BaseName` dispatcher. Only allows local calls.
 expire(BaseName, Id) ->
     Dispatcher = get_dispatcher_module(BaseName),
-    gen_server:handle_cast(Dispatcher, {'expire', Id}).
+    gen_server:cast(Dispatcher, {'expire', Id}).
 
--spec change_dispatcher_timeout(base_name(), tentacles_controller:millisecs()) -> ok.
+-spec change_timeout(base_name(), tentacles_controller:millisecs()) -> ok.
 %% @doc Changes the dispatchers timeout. Only allows local calls.
-change_dispatcher_timeout(BaseName, Timeout) ->
+change_timeout(BaseName, Timeout) ->
     Dispatcher = get_dispatcher_module(BaseName),
-    gen_server:handle_cast(Dispatcher, {'change_timeout', Timeout}).
+    gen_server:cast(Dispatcher, {'change_timeout', Timeout}).
+
+-spec get_timeout(base_name()) -> response().
+%% @doc Gets dispatcher timeout.
+get_timeout(BaseName) ->
+    Dispatcher = get_dispatcher_module(BaseName),
+    send_to_server({Dispatcher, node()}, 'get_timeout', none).
 
 -spec send_event_to_controller(base_name(), node(), id(), event()) -> ok.
 %% @doc Sends `Event` to controller identified by `Id`.
 send_event_to_controller(BaseName, Node, Id, Event) ->
     Dispatcher = get_dispatcher_module(BaseName),
-    gen_server:handle_cast({Dispatcher, Node}, {'event', Id, Event}).
+    gen_server:cast({Dispatcher, Node}, {'event', Id, Event}).
 
 -spec send_event(base_name(), node(), event()) -> ok.
 %% @doc Sends `Event` to dispatcher.
 send_event(BaseName, Node, Event) ->
     Dispatcher = get_dispatcher_module(BaseName),
-    gen_server:handle_cast({Dispatcher, Node}, {'event', Event}).
+    gen_server:cast({Dispatcher, Node}, {'event', Event}).
+
+-spec stop(base_name(), any()) -> ok.
+%% @doc Stops the server.
+stop(BaseName, Reason) ->
+    Dispatcher = get_dispatcher_module(BaseName),
+    gen_server:cast({Dispatcher, node()}, {'event', {'stop', Reason}}).
 
 %-------------------------------------------------------------------------------
 % gen_server callbacks definitions.
@@ -195,6 +208,7 @@ handle_call({'sync', {Id, Msg}, Timestamp}, _From, State) ->
             {noreply, State}
     end;
 
+% Whether a controller is alive or not.
 handle_call({'is_alive', Id, Timestamp}, _From, State) ->
     case on_time(Timestamp) of
         true ->
@@ -204,6 +218,16 @@ handle_call({'is_alive', Id, Timestamp}, _From, State) ->
                 not_found  ->
                     {reply, no, State}
             end;
+        false ->
+            {noreply, State}
+    end;
+
+% Gets dispatcher timeout.
+handle_call({'get_timeout', none, Timestamp}, _From, State) ->
+    case on_time(Timestamp) of
+        true ->
+            BaseName = State#state.base_name,
+            {reply, get_dispatcher_timeout(BaseName), State};
         false ->
             {noreply, State}
     end;
@@ -223,7 +247,7 @@ handle_cast({'change_timeout', Timeout}, State) ->
     if
         is_integer(Timeout) and (Timeout > 0) ->    
             BaseName = State#state.base_name,
-            set_dispatcher_timeout(BaseName, Timeout);
+            set_dispatcher_timeout(BaseName, Timeout),
             {noreply, State};
         true ->
             {noreply, State}
@@ -232,15 +256,8 @@ handle_cast({'change_timeout', Timeout}, State) ->
 % Dispatcher remote event.
 handle_cast({'event', Event}, State) ->
     Dispatcher      = State#state.dispatcher,
-    DispatcherState = State#state.dispatcher_state,
-    case Dispatcher:handle_event(Event, DispatcherState) of
-        {noreply, NewDispatcherState}      ->
-            NewState = State#state{ dispatcher_state = NewDispatcherState},
-            {noreply, NewState};
-        {stop, Reason, NewDispatcherState} ->
-            NewState = State#state{ dispatcher_state = NewDispatcherState},
-            {stop, Reason, NewState}
-     end;
+    Dispatcher ! Event,
+    {noreply, State};
 
 % Controller remote event.
 handle_cast({'event', Id, Event}, State) ->
@@ -273,6 +290,10 @@ handle_info('timeout', State) ->
             {stop, Reason, NewState}
      end;
 
+%stop
+handle_info({'stop', Reason}, State) ->
+    {stop, Reason, State};
+
 % Events.
 handle_info(Event, State) ->
     Dispatcher      = State#state.dispatcher,
@@ -289,7 +310,7 @@ handle_info(Event, State) ->
 terminate(Reason, State) ->
     Dispatcher      = State#state.dispatcher,
     DispatcherState = State#state.dispatcher_state,
-    Dispatcher:handle_terminate(Reason, DispatcherState),
+    Dispatcher:handle_termination(Reason, DispatcherState),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
