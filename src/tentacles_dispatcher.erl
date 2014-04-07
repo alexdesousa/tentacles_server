@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/2, sync_message/4, async_message/4, is_alive/3, expire/2,
+-export([start_link/2, sync_message/4, async_message/4, is_alive/3, ping/2, expire/2,
          change_timeout/2, get_timeout/1, send_event_to_controller/4,
          send_event/3, stop/2]).
 
@@ -120,6 +120,12 @@ is_alive(BaseName, Node, Id) ->
     Dispatcher = get_dispatcher_module(BaseName),
     send_to_server({Dispatcher, Node}, 'is_alive', Id).
 
+-spec ping(base_name(), node()) -> response().
+%% @doc Pings a dispatcher.
+ping(BaseName, Node) ->
+    Dispatcher = get_dispatcher_module(BaseName),
+    send_to_server({Dispatcher, Node}, 'ping', none).
+
 -spec expire(base_name(), id()) -> ok.
 %% @doc Sends expire signal of the controller identified by the `Id` to the
 %%      `BaseName` dispatcher. Only allows local calls.
@@ -218,6 +224,15 @@ handle_call({'is_alive', Id, Timestamp}, _From, State) ->
                 not_found  ->
                     {reply, no, State}
             end;
+        false ->
+            {noreply, State}
+    end;
+
+% Simple ping.
+handle_call({'ping', none, Timestamp}, _From, State) ->
+    case on_time(Timestamp) of
+        true ->
+            {reply, pong, State};
         false ->
             {noreply, State}
     end;

@@ -14,6 +14,7 @@ test() ->
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_sync_message(), [{to_file, user}])),
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_async_message(), [{to_file, user}])),
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_is_alive(), [{to_file, user}])),
+    ?assertEqual(true, proper:quickcheck(?MODULE:prop_ping(), [{to_file, user}])),
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_expire(), [{to_file, user}])),
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_timeout(), [{to_file, user}])),
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_send_event_to_controller(), [{to_file, user}])),
@@ -56,6 +57,14 @@ prop_is_alive() ->
             end
         end
     ).
+
+prop_ping() ->
+    case ?DISPATCHER:ping(test, node()) of
+        {pong, _} ->
+            true;
+        _ ->
+            false
+    end.
 
 prop_expire() ->
     ?FORALL(Id, id(),
