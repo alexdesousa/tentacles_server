@@ -79,7 +79,7 @@
                 | {stop, tentacles_controller:termination_reason(), dispatcher_state()}.
 
 %% @doc Callback to handle termination.
--callback handle_termination(tentacles_controller:termination_reason(), dispatcher_state) -> term().
+-callback handle_termination(tentacles_controller:termination_reason(), dispatcher_state()) -> term().
 
 %-------------------------------------------------------------------------------
 % Public functions.
@@ -370,16 +370,16 @@ on_time(Timestamp) ->
 -spec find_or_create_handler(id(), #state{}) -> {handler(), #state{}}.
 %% @doc Find or create handler to send requests for the program identified
 %%      by `Id`.
-find_or_create_handler(Id, #state{ dict             = Id2Handler
-                                 , base_name        = BaseName
-                                 , supervisor       = Supervisor
-                                 , controller       = Controller} = State) ->
+find_or_create_handler(Id, #state{ dict       = Id2Handler
+                                 , base_name  = BaseName
+                                 , supervisor = Supervisor
+                                 , controller = Controller} = State) ->
     case find_handler(Id, State) of
         {found, Handler} ->
             {Handler, State};
         not_found        ->
             MaxAge = get_controller_max_age(),
-            Args   = [BaseName, Controller, Id, MaxAge],
+            Args   = [Controller, BaseName, Id, MaxAge],
             {ok, Handler} = supervisor:start_child(Supervisor, Args),
             {Handler, State#state{
                         dict = dict:store(Id, Handler, Id2Handler)

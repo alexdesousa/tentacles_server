@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 % Public API.
--export([start_link/2, start_link/3, send_sync/3, send_async/3, send_event/2]).
+-export([start_link/4, send_sync/3, send_async/3, send_event/2]).
 
 % Callbacks.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -12,9 +12,6 @@
 %-------------------------------------------------------------------------------
 % Types
 %-------------------------------------------------------------------------------
-
--type arguments() :: list(term()).
-%% Arguments for the controller.
 
 -type server_name() :: module()
                      | {local, Name :: atom()}
@@ -66,6 +63,8 @@
 
 %% @doc tentacles_controller behavior internal state.
 -record(state, { module             :: module()
+               , base_name          :: tentacles_dispatcher:base_name()
+               , id                 :: tentacles_dispatcher:id()
                , max_age = infinity :: max_age()
                , controller_state   :: controller_state()
                }).
@@ -75,9 +74,8 @@
 %-------------------------------------------------------------------------------
 
 %% @doc Callback to initialize the controller.
--callback init(Args :: list(term())) ->
-                  {ok, controller_state()}
-                | {ok, controller_state(), max_age()}.
+-callback init( tentacles_dispatcher:base_name()
+              , tentacles_dispatcher:id()) -> {ok, controller_state()}.
 
 %% @doc Callback to handle a message.
 -callback handle_message(message(), controller_state()) ->
@@ -88,8 +86,7 @@
 
 %% @doc Callback to handle timeouts.
 -callback handle_timeout(controller_state()) ->
-                  {noreply, controller_state()}
-                | {stop, termination_reason(), controller_state()}.
+                  {noreply, controller_state()}.
 
 %% @doc Callback to handle events.
 -callback handle_event(event(), controller_state()) ->
@@ -97,25 +94,22 @@
                 | {stop, termination_reason(), controller_state()}.
 
 %% @doc Callback to handle termination.
--callback handle_termination(termination_reason(), controller_state) -> term().
+-callback handle_termination(termination_reason(), controller_state()) -> term().
 
 %-------------------------------------------------------------------------------
 % Public functions.
 %-------------------------------------------------------------------------------
 
--spec start_link(module(), arguments()) -> {ok, pid()}
-                                         | ignore
-                                         | {error, term()}.
+-spec start_link( module()
+                , tentacles_dispatcher:base_name()
+                , tentacles_dispatcher:id()
+                , max_age()) -> {ok, pid()}
+                              | ignore
+                              | {error, term()}.
 %% @doc Initializes the tentacles_controller.
-start_link(Module, Args) ->
-    start_link(Module, Module, Args).
-
--spec start_link(server_name(), module(), arguments()) -> {ok, pid()}
-                                                        | ignore
-                                                        | {error, term()}.
-%% @doc Initializes the tentacles_controller.
-start_link(ServerName, Module, Args) ->
-    case gen_server:start_link({local, ServerName}, ?MODULE, [Module, Args], []) of
+start_link(Module, BaseName, Id, MaxAge) ->
+    Args = [Module, BaseName, Id, MaxAge],
+    case gen_server:start_link({local, Module}, ?MODULE, Args, []) of
         {error, {already_started, Pid}} ->
             {ok, Pid};
         Else ->
@@ -148,20 +142,19 @@ send_event(Handler, Event) ->
 %-------------------------------------------------------------------------------
 
 %% @doc Initializes the gen_server state.
-init([Module, Args]) ->
-    case Module:init(Args) of
+init([Module, BaseName, Id, MaxAge]) ->
+    case Module:init(BaseName, Id) of
         {ok, ControllerState} ->
             State = #state{ module           = Module
-                          , controller_state = ControllerState},
-            {ok, State};
-        {ok, ControllerState, infinity} ->
-            State = #state{ module           = Module
-                          , controller_state = ControllerState},
-            {ok, State};
-        {ok, ControllerState, MaxAge} ->
-            State = #state{ module           = Module
+                          , base_name        = BaseName
+                          , id               = Id
                           , max_age          = MaxAge
-                          , controller_state = ControllerState},
+                          , controller_state = ControllerState}
+    end,
+    case MaxAge of
+        infinity ->
+            {ok, State};
+        _        ->
             {ok, State, MaxAge}
     end.
 
@@ -194,7 +187,18 @@ handle_cast(_Msg, State) ->
 handle_info(timeout, State) ->
     Module          = State#state.module,
     ControllerState = State#state.controller_state,
-    Response        = Module:handle_timeout(ControllerState),
+    Response = case Module:handle_timeout(ControllerState) of
+        {noreply, NewControllerState} ->
+            BaseName = State#state.base_name,
+            Id       = State#state.id,
+            tentacles_dispatcher:expire(BaseName, Id),
+            {stop, expire, NewControllerState};
+        _ ->
+            BaseName = State#state.base_name,
+            Id       = State#state.id,
+            tentacles_dispatcher:expire(BaseName, Id),
+            {stop, expire, ControllerState}
+    end,
     sync_result(Response, State);
 
 % Other events.
@@ -258,6 +262,14 @@ result({noreply, ControllerState}, State, infinity) ->
 result({noreply, ControllerState}, State, MaxAge) ->
     NewState = State#state{controller_state = ControllerState},
     {noreply, NewState, MaxAge};
+
+result({stop, expire, ControllerState}, State, infinity) ->
+    NewState = State#state{controller_state = ControllerState},
+    {noreply, NewState};
+
+result({stop, expire, ControllerState}, State, _MaxAge) ->
+    NewState = State#state{controller_state = ControllerState},
+    {stop, normal, NewState};
 
 result({stop, Reason, Response, ControllerState}, State, _MaxAge) ->
     NewState = State#state{controller_state = ControllerState},

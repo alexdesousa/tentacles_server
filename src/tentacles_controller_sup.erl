@@ -11,8 +11,8 @@ start_link(BaseName) ->
 init([BaseName]) ->
     ControllerName = tentacles_dispatcher:get_controller_module(BaseName),
     Controller     = { ControllerName
-                     , {ControllerName, start_link, []}
-                     , temporary, 2000, worker, [ControllerName]},
+                     , {tentacles_controller, start_link, []}
+                     , temporary, 2000, worker, [tentacles_controller]},
     
     RestartStrategy = {simple_one_for_one, 0, 10},
     Children = [Controller],
