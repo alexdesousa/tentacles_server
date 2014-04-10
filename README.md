@@ -16,6 +16,65 @@ The server process tree has the following shape:
 
 ![Tentacles Server](.readme/tentacles_supervisors.png)
 
+Tests
+-----
+
+1. Download and compile:
+
+    ```shell
+    alex@arya:~$ git clone https://github.com/alexdesousa/tentacles_server.git
+    (...)
+    [output omitted]
+    (...)
+    alex@arya:~$ cd tentacles_server/
+    alex@arya:~/tentacles_server$ make
+    ==> proper (get-deps)
+    ==> tentacles_server (get-deps)
+    ==> proper (compile)
+    (...)
+    [output omitted]
+    (...)
+    ==> tentacles_server (compile)
+    Compiled src/tentacles_controller.erl
+    Compiled src/tentacles_dispatcher.erl
+    Compiled src/tentacles_controller_sup.erl
+    Compiled src/tentacles_server_sup.erl
+    ```
+
+2. Run tests:
+
+    ```shell
+    alex@arya:~/tentacles_server$ make tests
+    ==> tentacles_server (eunit)
+    Compiled src/tentacles_controller.erl
+    Compiled src/tentacles_dispatcher.erl
+    Compiled test/tentacles_test_dispatcher.erl
+    Compiled test/tentacles_test_controller.erl
+    Compiled src/tentacles_controller_sup.erl
+    Compiled src/tentacles_server_sup.erl
+    Compiled test/tentacles_proper_test.erl
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    ....................................................................................................
+    OK: Passed 100 test(s).
+      Test passed.
+    Cover analysis: /home/alex/tentacles_server/.eunit/index.html
+    ```
+
 More Information
 ----------------
 
