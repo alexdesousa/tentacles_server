@@ -108,8 +108,9 @@
                               | {error, term()}.
 %% @doc Initializes the tentacles_controller.
 start_link(Module, BaseName, Id, MaxAge) ->
-    Args = [Module, BaseName, Id, MaxAge],
-    case gen_server:start_link({local, Module}, ?MODULE, Args, []) of
+    Args       = [Module, BaseName, Id, MaxAge],
+    ServerName = list_to_atom(atom_to_list(Module) ++ hashing:sha1(Id)),
+    case gen_server:start_link({local, ServerName}, ?MODULE, Args, []) of
         {error, {already_started, Pid}} ->
             {ok, Pid};
         Else ->
