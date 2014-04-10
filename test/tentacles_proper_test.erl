@@ -19,6 +19,7 @@ test() ->
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_timeout(), [{to_file, user}])),
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_send_event_to_controller(), [{to_file, user}])),
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_send_event(), [{to_file, user}])),
+    ?assertEqual(true, proper:quickcheck(?MODULE:prop_whois_broadcast(), [{to_file, user}])),
     ?assertEqual(true, ?MODULE:prop_stop()).
 
 prop_sync_message() ->
@@ -108,9 +109,49 @@ prop_send_event_to_controller() ->
 prop_send_event() ->
     ok =:= ?DISPATCHER:send_event(test, node(), event).
 
+prop_whois_broadcast() ->
+    ?FORALL(Ids, ids(),
+        begin
+            % Clear old.
+            case ?DISPATCHER:whois_broadcast(test) of
+                {{ok, Old}, _} ->
+                    lists:map(fun(Id) -> ?DISPATCHER:expire(test, Id) end, Old);
+                _ ->
+                    nothing
+            end,
+        
+            % Create new.
+            Filtered = lists:usort(
+                lists:foldl(fun(Id, Acc) ->
+                    case ?DISPATCHER:sync_message(test, node(), Id, ping) of
+                        {pong, _} ->
+                            [Id | Acc];
+                        _ ->
+                            Acc
+                    end
+                end, [], Ids)),
+            
+            % Check.
+            Result = case ?DISPATCHER:whois_broadcast(test) of
+                {{ok, Active}, _} ->
+                    Filtered =:= lists:sort(Active);
+                _ ->
+                    false
+            end,
+            
+            % Clean.
+            lists:map(fun(Id) -> ?DISPATCHER:expire(test, Id) end, Filtered),
+            
+            Result
+        end
+    ).
+
 prop_stop() ->
     ok =:= ?DISPATCHER:stop(test, normal).
 
-id() -> atom().
+id() -> integer().
+
+ids() ->
+    ?SUCHTHAT(Ids, list(id()), length(Ids) >  0).
 
 good_timeout() -> range(30000, 40000).

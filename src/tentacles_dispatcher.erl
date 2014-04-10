@@ -4,7 +4,7 @@
 
 -export([start_link/2, sync_message/4, async_message/4, is_alive/3, ping/2, expire/2,
          change_timeout/2, get_timeout/1, send_event_to_controller/4,
-         send_event/3, stop/2]).
+         send_event/3, whois_broadcast/1, stop/2]).
 
 -export([get_dispatcher_module/1, get_controller_module/1]).
 
@@ -157,6 +157,12 @@ send_event(BaseName, Node, Event) ->
     Dispatcher = get_dispatcher_module(BaseName),
     gen_server:cast({Dispatcher, Node}, {'event', Event}).
 
+-spec whois_broadcast(base_name()) -> response().
+%% @doc Whois broadcast.
+whois_broadcast(BaseName) ->
+    Dispatcher = get_dispatcher_module(BaseName),
+    send_to_server({Dispatcher, node()}, 'whois_broadcast', none).
+
 -spec stop(base_name(), any()) -> ok.
 %% @doc Stops the server.
 stop(BaseName, Reason) ->
@@ -224,6 +230,17 @@ handle_call({'is_alive', Id, Timestamp}, _From, State) ->
                 not_found  ->
                     {reply, no, State}
             end;
+        false ->
+            {noreply, State}
+    end;
+
+% Whois request to check which controllers are active.
+handle_call({'whois_broadcast', none, Timestamp}, From, State) ->
+    case on_time(Timestamp) of
+        true  ->
+            Dispatcher = State#state.dispatcher,
+            Dispatcher ! {'whois_broadcast', From},
+            {noreply, State};
         false ->
             {noreply, State}
     end;
@@ -305,6 +322,13 @@ handle_info('timeout', State) ->
             {stop, Reason, NewState}
      end;
 
+% Whois
+handle_info({'whois_broadcast', From}, State) ->
+    spawn(fun() ->
+            whois_broadcast(From, State#state.dict)
+          end),
+    {noreply, State};
+
 %stop
 handle_info({'stop', Reason}, State) ->
     {stop, Reason, State};
@@ -378,7 +402,7 @@ find_or_create_handler(Id, #state{ dict       = Id2Handler
         {found, Handler} ->
             {Handler, State};
         not_found        ->
-            MaxAge = get_controller_max_age(),
+            MaxAge = get_controller_max_age(BaseName),
             Args   = [Controller, BaseName, Id, MaxAge],
             {ok, Handler} = supervisor:start_child(Supervisor, Args),
             {Handler, State#state{
@@ -398,10 +422,11 @@ find_handler(Id, #state{dict = Id2Handler}) ->
 % Configuration functions.
 %-------------------------------------------------------------------------------
 
--spec get_controller_max_age() -> tentacles_controller:max_age().
+-spec get_controller_max_age(base_name()) -> tentacles_controller:max_age().
 %% @doc Gets controller max age.
-get_controller_max_age() ->
-    case application:get_env(tentacles, tentacles_controller_max_age) of
+get_controller_max_age(Name) ->
+    Prop = list_to_atom("tentacles_" ++ atom_to_list(Name) ++ "_controller_max_age"),
+    case application:get_env(tentacles, Prop) of
         undefined    -> ?TENTACLES_CONTROLLER_MAX_AGE;
         {ok, MaxAge} -> MaxAge
     end.
@@ -443,3 +468,9 @@ get_controller_supervisor_module(Name) ->
 %% @doc Get controller module name.
 get_controller_module(Name) ->
     list_to_atom("tentacles_" ++ atom_to_list(Name) ++ "_controller").
+
+-spec whois_broadcast(From :: {pid(), term()}, Dict :: dict()) -> term().
+%% @doc Whois broadcast.
+whois_broadcast(From, Dict) ->
+    Ids = proplists:get_keys(dict:to_list(Dict)),
+    gen_server:reply(From, {ok, Ids}).
