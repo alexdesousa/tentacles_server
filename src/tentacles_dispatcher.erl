@@ -414,8 +414,13 @@ find_or_create_handler(Id, #state{ dict       = Id2Handler
 %% @doc Find the handler
 find_handler(Id, #state{dict = Id2Handler}) ->
     case dict:find(Id, Id2Handler) of
-        {ok, Handler} -> {found, Handler};
-        _             -> not_found
+        {ok, Handler} ->
+            case erlang:is_process_alive(Handler) of
+                true  -> {found, Handler};
+                false -> not_found
+            end;
+        _ ->
+            not_found
     end.     
 
 %-------------------------------------------------------------------------------

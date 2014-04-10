@@ -190,14 +190,8 @@ handle_info(timeout, State) ->
     ControllerState = State#state.controller_state,
     Response = case Module:handle_timeout(ControllerState) of
         {noreply, NewControllerState} ->
-            BaseName = State#state.base_name,
-            Id       = State#state.id,
-            tentacles_dispatcher:expire(BaseName, Id),
             {stop, expire, NewControllerState};
         _ ->
-            BaseName = State#state.base_name,
-            Id       = State#state.id,
-            tentacles_dispatcher:expire(BaseName, Id),
             {stop, expire, ControllerState}
     end,
     sync_result(Response, State);
@@ -213,7 +207,10 @@ handle_info(Event, State) ->
 terminate(Reason, State) ->
     Module          = State#state.module,
     ControllerState = State#state.controller_state,
-    Module:handle_termination(Reason, ControllerState).
+    Module:handle_termination(Reason, ControllerState),
+    BaseName = State#state.base_name,
+    Id       = State#state.id,
+    tentacles_dispatcher:expire(BaseName, Id).
 
 % Code change.
 code_change(_OldVsn, State, _Extra) ->
