@@ -10,6 +10,9 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
+         
+%Callbacks
+-export([init/2, handle_timeout/1, handle_event/2, handle_termination/2]).
 
 -define(TENTACLES_CONTROLLER_MAX_AGE, 30000).
 
@@ -82,6 +85,22 @@
 
 %% @doc Callback to handle termination.
 -callback handle_termination(tentacles_controller:termination_reason(), dispatcher_state()) -> term().
+
+%-------------------------------------------------------------------------------
+% Default callbacks implementation.
+%-------------------------------------------------------------------------------
+
+init(_Name, _Args) ->
+    {ok, none}.
+
+handle_timeout(State) ->
+    {noreply, State}.
+
+handle_event(_Event, State) ->
+    {noreply, State}.
+
+handle_termination(_Reason, _State) ->
+    ok.
 
 %-------------------------------------------------------------------------------
 % Public functions.
@@ -180,12 +199,14 @@ init([Name, Args]) ->
     Dispatcher            = get_dispatcher_module(Name),
     Supervisor            = get_controller_supervisor_module(Name),
     Controller            = get_controller_module(Name),
-    DispatcherState = case Dispatcher:init(Name, Args) of
+    DispatcherState = case execute_callback(Dispatcher, init, [Name, Args]) of
         {ok, S} ->
             S;
         {ok, S, Timeout} ->
             set_dispatcher_timeout(Name, Timeout),
-            S
+            S;
+        Error ->
+            {stop, Error}
     end,
     
     Timer = erlang:send_after(1, self(), 'timeout'),
@@ -310,7 +331,7 @@ handle_info('timeout', State) ->
 
     Dispatcher      = State#state.dispatcher,
     DispatcherState = State#state.dispatcher_state,
-    Result = Dispatcher:handle_timeout(DispatcherState),
+    Result = execute_callback(Dispatcher, handle_timeout, [DispatcherState]),
 
     Timeout = get_dispatcher_timeout(State#state.base_name),
     erlang:send_after(Timeout, self(), timeout),
@@ -321,7 +342,9 @@ handle_info('timeout', State) ->
             {noreply, NewState};
         {stop, Reason, NewDispatcherState} ->
             NewState = State#state{ dispatcher_state = NewDispatcherState},
-            {stop, Reason, NewState}
+            {stop, Reason, NewState};
+        {error, _} ->
+            {noreply, State}
      end;
 
 % Whois
@@ -339,19 +362,21 @@ handle_info({'stop', Reason}, State) ->
 handle_info(Event, State) ->
     Dispatcher      = State#state.dispatcher,
     DispatcherState = State#state.dispatcher_state,
-    case Dispatcher:handle_event(Event, DispatcherState) of
+    case execute_callback(Dispatcher, handle_event, [Event, DispatcherState]) of
         {noreply, NewDispatcherState}      ->
             NewState = State#state{ dispatcher_state = NewDispatcherState},
             {noreply, NewState};
         {stop, Reason, NewDispatcherState} ->
             NewState = State#state{ dispatcher_state = NewDispatcherState},
-            {stop, Reason, NewState}
+            {stop, Reason, NewState};
+        {error, _} ->
+            {noreply, State}
      end.
 
 terminate(Reason, State) ->
     Dispatcher      = State#state.dispatcher,
     DispatcherState = State#state.dispatcher_state,
-    Dispatcher:handle_termination(Reason, DispatcherState),
+    execute_callback(Dispatcher, handle_termination, [Reason, DispatcherState]),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -360,6 +385,30 @@ code_change(_OldVsn, State, _Extra) ->
 %-------------------------------------------------------------------------------
 % Internal functions.
 %-------------------------------------------------------------------------------
+
+-spec execute_callback( Module :: module()
+                      , Function :: atom()
+                      , Args :: [term()]) -> {error, bad_arity}
+                                           | {error, no_module}
+                                           | term().
+% Executes callbacks.
+execute_callback(Module, Function, Args) ->
+    try Module:module_info(exports) of
+        Prop ->
+            Arity = length(Args),
+            case proplists:get_value(Function, Prop) of
+                undefined ->
+                    erlang:apply(?MODULE, Function, Args);
+                Arity ->
+                    erlang:apply(Module, Function, Args);
+                _     ->
+                    {error, bad_arity}
+            end
+
+    catch
+        _:_ ->
+            {error, no_module}
+    end.
 
 -spec send_to_server(server_ref(), atom(), term()) -> response().
 % @doc Function sends message to a server.

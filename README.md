@@ -48,7 +48,6 @@ Tests
     ==> tentacles_server (eunit)
     Compiled src/tentacles_controller.erl
     Compiled src/tentacles_dispatcher.erl
-    Compiled test/tentacles_test_dispatcher.erl
     Compiled test/tentacles_test_controller.erl
     Compiled src/tentacles_controller_sup.erl
     Compiled src/tentacles_server_sup.erl
