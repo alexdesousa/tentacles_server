@@ -39,8 +39,8 @@
 
 -type response() :: {tentacles_controller:response(), tentacles_controller:millisecs()}
                   | {error, timeout}
-                  | {error, unavailable}
-                  | {error, unknown}.
+                  | {error, {unavailable, term()}}
+                  | {error, {other, term()}}.
 %% Server response.
 
 -type dispatcher_state() :: term().
@@ -369,9 +369,9 @@ send_to_server(ServerRef, Type, Msg) ->
         Reply = gen_server:call(ServerRef, DispMsg, Timeout),
         {Reply, request_time(Timestamp)}
     catch
-        exit:{timeout, _} -> {error, timeout};
-        exit:{noproc, _}  -> {error, unavailable};
-        _:_               -> {error, unknown}
+        exit:{timeout, _}    -> {error, timeout};
+        exit:{noproc, Error} -> {error, {unavailable, Error}};
+        _:Error              -> {error, {other, Error}}
     end.
 
 -spec request_time(erlang:timestamp()) -> tentacles_controller:millisecs().
