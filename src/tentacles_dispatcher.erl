@@ -37,7 +37,9 @@
                     | pid().
 %% Server reference.
 
--type response() :: {tentacles_controller:response(), tentacles_controller:millisecs()}
+-type microsecs() :: integer().
+
+-type response() :: {tentacles_controller:response(), microsecs()}
                   | {error, timeout}
                   | {error, {unavailable, term()}}
                   | {error, {other, term()}}.
@@ -374,7 +376,7 @@ send_to_server(ServerRef, Type, Msg) ->
         _:Error              -> {error, {other, Error}}
     end.
 
--spec request_time(erlang:timestamp()) -> tentacles_controller:millisecs().
+-spec request_time(erlang:timestamp()) -> tentacles_controller:microsecs().
 % @doc Calculates the request time given a time stamp.
 request_time(Timestamp) ->
     timer:now_diff(erlang:now(), Timestamp).
@@ -382,7 +384,7 @@ request_time(Timestamp) ->
 -spec on_time(erlang:timestamp()) -> true | false.
 %% @doc If the `Timestamp` is still on time.
 on_time(Timestamp) ->
-    Timeout = get_connection_timeout(),
+    Timeout = get_connection_timeout() * 1000,
     Ms      = request_time(Timestamp),
     if
         Ms >= Timeout ->
