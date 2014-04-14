@@ -13,13 +13,13 @@ server_test() ->
 
 test() ->
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_sync_message(), [{to_file, user}])),
-    message_time(sync_message, ?NUMBER_OF_TESTS),
+    message_time(sync_message),
     
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_async_message(), [{to_file, user}])),
-    message_time(async_message, ?NUMBER_OF_TESTS),
+    message_time(async_message),
 
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_concurrent_message(), [{to_file, user}])),
-    message_time(concurrent_message, ?NUMBER_OF_TESTS),
+    message_time(concurrent_message),
 
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_is_alive(), [{to_file, user}])),
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_ping(), [{to_file, user}])),
@@ -30,11 +30,11 @@ test() ->
     ?assertEqual(true, proper:quickcheck(?MODULE:prop_whois_broadcast(), [{to_file, user}])),
     ?assertEqual(true, ?MODULE:prop_stop()).
 
-message_time(Function, Tests) ->
-    message_time(Function, 0, Tests, Tests).
+message_time(Function) ->
+    message_time(Function, 0, ?NUMBER_OF_TESTS, ?NUMBER_OF_TESTS).
 
 message_time(Function, Acc, N, 0) ->
-    ?debugFmt("~p/4 average time: ~p μs", [Function, Acc/N]);
+    ?debugFmt("~s/4 average time: ~.2f μs", [Function, Acc/N]);
 message_time(Function, Acc, N, M) ->
     {ok, Id} = proper_gen:pick(id()),
     F = fun() ->
