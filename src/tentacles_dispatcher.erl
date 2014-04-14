@@ -2,9 +2,9 @@
 
 -behaviour(gen_server).
 
--export([start_link/2, sync_message/4, async_message/4, is_alive/3, ping/2, expire/2,
-         change_timeout/2, get_timeout/1, send_event_to_controller/4,
-         send_event/3, whois_broadcast/1, stop/2]).
+-export([start_link/2, sync_message/4, async_message/4, concurrent_message/4,
+         is_alive/3, ping/2, expire/2, change_timeout/2, get_timeout/1,
+         send_event_to_controller/4, send_event/3, whois_broadcast/1, stop/2]).
 
 -export([get_dispatcher_module/1, get_controller_module/1]).
 
@@ -135,6 +135,13 @@ async_message(BaseName, Node, Id, Msg) ->
     Dispatcher = get_dispatcher_module(BaseName),
     send_to_server({Dispatcher, Node}, 'async', {Id, Msg}).
 
+-spec concurrent_message(base_name(), node(), id(), tentacles_controller:message()) ->response().
+%% @doc Sends asynchronous concurrent `Message` to the `BaseName` dispatcher in
+%% a `Node` for the controller identified by the `Id`.
+concurrent_message(BaseName, Node, Id, Msg) ->
+    Dispatcher = get_dispatcher_module(BaseName),
+    send_to_server({Dispatcher, Node}, 'concurrent', {Id, Msg}).
+
 -spec is_alive(base_name(), node(), id()) -> response().
 %% @doc Checks if controller `ID` is alive in `Node`.
 is_alive(BaseName, Node, Id) ->
@@ -230,6 +237,17 @@ handle_call({'async', {Id, Msg}, Timestamp}, From, State) ->
         false ->
             {noreply, State}
     end;
+
+handle_call({'concurrent', {Id, Msg}, Timestamp}, From, State) ->
+    case on_time(Timestamp) of
+        true ->
+            {Handler, NewState} = find_or_create_handler(Id, State),
+            tentacles_controller:send_concurrent(Handler, From, Msg),
+            {noreply, NewState};
+        false ->
+            {noreply, State}
+    end;
+
 
 % Serial requests.
 handle_call({'sync', {Id, Msg}, Timestamp}, _From, State) ->

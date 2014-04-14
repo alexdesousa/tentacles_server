@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 % Public API.
--export([start_link/4, send_sync/3, send_async/3, send_event/2]).
+-export([start_link/4, send_sync/3, send_async/3, send_concurrent/3, send_event/2]).
 
 % Callbacks.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -109,7 +109,7 @@
 %% @doc Initializes the tentacles_controller.
 start_link(Module, BaseName, Id, MaxAge) ->
     Args       = [Module, BaseName, Id, MaxAge],
-    ServerName = list_to_atom(atom_to_list(Module) ++ hashing:sha1(Id)),
+    ServerName = get_server_name(Module, Id),
     case gen_server:start_link({local, ServerName}, ?MODULE, Args, []) of
         {error, {already_started, Pid}} ->
             {ok, Pid};
@@ -132,6 +132,11 @@ send_sync(Handler, Msg, Timeout) ->
 %% @doc Sends asynchronous message to the controller.
 send_async(Handler, From, Msg) ->
     gen_server:cast(Handler, {From, Msg}).
+
+-spec send_concurrent(server_name() | pid(), sender(), message()) -> ok.
+%% @doc Sends asynchronous concurrent message to the controller.
+send_concurrent(Handle, From, Msg) ->
+    gen_server:cast(Handle, {'concurrent', From, Msg}).
 
 -spec send_event(server_name() | pid(), event()) -> ok.
 %% @doc Sends remote event to server.
@@ -179,6 +184,16 @@ handle_cast({From, Msg}, State) ->
     ControllerState = State#state.controller_state,
     Response = Module:handle_message(Msg, ControllerState),
     async_result(From, Response, State);
+
+% Asynchronous concurrent calls.
+handle_cast({'concurrent', From, Msg}, State) ->
+    Module   = State#state.module,
+    ControllerState = State#state.controller_state,
+    spawn(fun() ->
+        Response = Module:handle_message(Msg, ControllerState),
+        async_result(From, Response, State)
+    end),
+    {noreply, State};
 
 % Ignore the rest.
 handle_cast(_Msg, State) ->
@@ -299,3 +314,8 @@ async_result(From, Reply, State) ->
 %% @doc Builds the result for syncronous requests.
 sync_result(Reply, State) ->
     build_result(none, Reply, State).
+
+-spec get_server_name(module(), tentacles_dispatcher:id()) -> atom().
+%% @doc Gets server name.
+get_server_name(Module, Id) ->
+    list_to_atom(atom_to_list(Module) ++ hashing:sha1(Id)).

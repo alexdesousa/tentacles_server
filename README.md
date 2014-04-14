@@ -45,17 +45,23 @@ Tests
 
     ```shell
     alex@arya:~/tentacles_server$ make tests
+    ==> proper (get-deps)
+    ==> tentacles_server (get-deps)
+    ==> proper (compile)
+    make[1]: Entering directory `/home/alex/tentacles_server/deps/proper'
+    make[1]: `include/compile_flags.hrl' is up to date.
+    make[1]: Leaving directory `/home/alex/tentacles_server/deps/proper'
+    ==> tentacles_server (compile)
     ==> tentacles_server (eunit)
-    Compiled src/tentacles_controller.erl
-    Compiled src/tentacles_dispatcher.erl
-    Compiled test/tentacles_test_controller.erl
-    Compiled src/tentacles_controller_sup.erl
-    Compiled src/tentacles_server_sup.erl
-    Compiled test/tentacles_proper_test.erl
     ....................................................................................................
     OK: Passed 100 test(s).
+    test/tentacles_proper_test.erl:37:<0.141.0>: sync_message/4 average time: 45.93 μs
     ....................................................................................................
     OK: Passed 100 test(s).
+    test/tentacles_proper_test.erl:37:<0.141.0>: async_message/4 average time: 36.89 μs
+    ....................................................................................................
+    OK: Passed 100 test(s).
+    test/tentacles_proper_test.erl:37:<0.141.0>: concurrent_message/4 average time: 37.06 μs
     ....................................................................................................
     OK: Passed 100 test(s).
     ....................................................................................................
