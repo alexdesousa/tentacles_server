@@ -152,13 +152,13 @@ concurrent_message(BaseName, Node, Id, Msg) ->
 send_message(Mode, BaseName, Node, Id, Msg) ->
     case Mode of
         concurrent ->
-            concurrent_message(Mode, BaseName, Node, Id, Msg);
+            concurrent_message(BaseName, Node, Id, Msg);
         async      ->
-            async_message(Mode, BaseName, Node, Id, Msg);
+            async_message(BaseName, Node, Id, Msg);
         sync       ->
-            sync_message(Mode, BaseName, Node, Id, Msg);
+            sync_message(BaseName, Node, Id, Msg);
         _            ->
-            concurrent_message(Mode, BaseName, Node, Id, Msg)
+            concurrent_message(BaseName, Node, Id, Msg)
     end.
     
 
