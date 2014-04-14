@@ -1,22 +1,17 @@
 REBAR=./rebar
 
-.PHONY: deps get-deps
-
-all:
-	@$(REBAR) get-deps
-	@$(REBAR) compile
-
-tentacles_server:
-	@$(REBAR) compile skip_deps=true
-
-clean:
-	@$(REBAR) clean
+all: compile
 
 get-deps:
 	@$(REBAR) get-deps
 
-deps:
+compile: get-deps
 	@$(REBAR) compile
 
+clean:
+	@$(REBAR) clean
+
 tests:
-	@$(REBAR) skip_deps=true eunit
+	@$(REBAR) --config "rebar.test.config" get-deps
+	@$(REBAR) --config "rebar.test.config" compile
+	@$(REBAR) --config "rebar.test.config" skip_deps=true eunit
