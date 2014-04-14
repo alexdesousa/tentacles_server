@@ -3,8 +3,9 @@
 -behaviour(gen_server).
 
 -export([start_link/2, sync_message/4, async_message/4, concurrent_message/4,
-         is_alive/3, ping/2, expire/2, change_timeout/2, get_timeout/1,
-         send_event_to_controller/4, send_event/3, whois_broadcast/1, stop/2]).
+         send_message/5, is_alive/3, ping/2, expire/2, change_timeout/2,
+         get_timeout/1, send_event_to_controller/4, send_event/3,
+         whois_broadcast/1, stop/2]).
 
 -export([get_dispatcher_module/1, get_controller_module/1]).
 
@@ -141,6 +142,25 @@ async_message(BaseName, Node, Id, Msg) ->
 concurrent_message(BaseName, Node, Id, Msg) ->
     Dispatcher = get_dispatcher_module(BaseName),
     send_to_server({Dispatcher, Node}, 'concurrent', {Id, Msg}).
+
+-spec send_message( concurrent | async | sync
+                  , base_name()
+                  , node()
+                  , id()
+                  , tentacles_controller:message()) -> response().
+%% @doc Send message provided a mode. Default is 'concurrent'.
+send_message(Mode, BaseName, Node, Id, Msg) ->
+    case Mode of
+        concurrent ->
+            concurrent_message(Mode, BaseName, Node, Id, Msg);
+        async      ->
+            async_message(Mode, BaseName, Node, Id, Msg);
+        sync       ->
+            sync_message(Mode, BaseName, Node, Id, Msg);
+        _            ->
+            concurrent_message(Mode, BaseName, Node, Id, Msg)
+    end.
+    
 
 -spec is_alive(base_name(), node(), id()) -> response().
 %% @doc Checks if controller `ID` is alive in `Node`.
