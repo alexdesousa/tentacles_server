@@ -2,6 +2,11 @@ REBAR=./rebar
 
 all: compile
 
+update-deps:
+	rm -rf deps/*
+	@$(REBAR) get-deps
+	@$(REBAR) compile
+
 get-deps:
 	@$(REBAR) get-deps
 
