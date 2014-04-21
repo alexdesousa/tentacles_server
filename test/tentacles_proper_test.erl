@@ -34,7 +34,8 @@ message_time(Function) ->
     message_time(Function, 0, ?NUMBER_OF_TESTS, ?NUMBER_OF_TESTS).
 
 message_time(Function, Acc, N, 0) ->
-    ?debugFmt("~s/4 average time: ~.2f μs", [Function, Acc/N]);
+    io:setopts({encoding, utf8}),
+    ?debugFmt("~s/4 average time: ~.2f microsecs.", [Function, Acc/N]);
 message_time(Function, Acc, N, M) ->
     {ok, Id} = proper_gen:pick(id()),
     F = fun() ->
